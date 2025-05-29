@@ -1,0 +1,201 @@
+@page "/play"
+@rendermode InteractiveServer
+@using CaroAIServer.Services
+@inject GameService gameService
+@inject AIService aiService
+@using CaroAIServer.Components.Game
+
+<style>
+    .page-title {
+        font-size: 2em; /* Base size for mobile */
+        color: #333;
+        text-align: center;
+        margin-bottom: 20px; /* Adjusted margin */
+        font-weight: bold;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+    }
+
+    .game-area-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start; /* Align to top to see content scroll if needed */
+        width: 100%;
+        padding: 10px; /* Add some padding for small screens */
+        box-sizing: border-box;
+    }
+
+    .status-controls-container {
+        display: flex;
+        flex-direction: column; /* Stack vertically on mobile by default */
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 15px; /* Adjusted margin */
+        gap: 10px; /* Adjusted gap */
+        width: 100%; /* Take full width to center content properly */
+    }
+
+    .status-message {
+        font-size: 1em; /* Base size for mobile */
+        font-weight: 500;
+        padding: 8px 12px; /* Adjusted padding */
+        border-radius: 5px;
+        background-color: #e9ecef;
+        color: #495057;
+        border: 1px solid #ced4da;
+        margin: 0;
+        text-align: center;
+        width: auto; /* Fit content or be constrained by parent */
+        max-width: 90%; /* Prevent it from being too wide */
+    }
+
+    .btn-new-game {
+        padding: 8px 15px;
+        font-size: 0.9em; /* Base size for mobile */
+        color: #fff;
+        background-color: #007bff;
+        border-color: #007bff;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background-color 0.3s ease, border-color 0.3s ease;
+        margin: 0;
+        width: auto; /* Fit content */
+        max-width: 80%; /* Prevent it from being too wide */
+    }
+
+    .btn-new-game:hover {
+        background-color: #0056b3;
+        border-color: #0056b3;
+    }
+
+    .game-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        width: 100%; /* Ensure it takes available width for board centering */
+    }
+
+    /* Medium screens and up (tablets, small desktops) */
+    @@media (min-width: 600px) {
+        .page-title {
+            font-size: 2.5em; /* Increase title size */
+            margin-bottom: 30px;
+        }
+
+        .status-controls-container {
+            flex-direction: row; /* Side-by-side for larger screens */
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .status-message {
+            font-size: 1.1em;
+            padding: 8px 15px;
+        }
+
+        .btn-new-game {
+            font-size: 1em;
+        }
+    }
+</style>
+
+<div class="game-area-container">
+    <h3 class="page-title">Play Caro vs AI</h3>
+
+    <div class="status-controls-container">
+        @if (!string.IsNullOrEmpty(statusMessage))
+        {
+            <p class="status-message">@statusMessage</p>
+        }
+        <button class="btn-new-game" @onclick="ResetGame">New Game</button>
+    </div>
+
+    <div class="game-container">
+        <Board OnCellClick="HandleCellClick" />
+    </div>
+</div>
+
+@code {
+    private string statusMessage = string.Empty;
+    private bool gameEnded = false;
+    private const int HumanPlayer = 1;
+    private const int AIPlayer = 2;
+
+    protected override void OnInitialized()
+    {
+        gameService.ResetGame(); // Start a new game on page load
+        statusMessage = "Your turn (X).";
+    }
+
+    private async Task HandleCellClick((int row, int col) cell)
+    {
+        if (gameEnded || gameService.CurrentPlayer != HumanPlayer)
+        {
+            return; // Not human's turn or game over
+        }
+
+        if (gameService.MakeMove(cell.row, cell.col))
+        {
+            if (gameService.CheckWin(HumanPlayer))
+            {
+                statusMessage = "Congratulations! You win!";
+                gameEnded = true;
+                StateHasChanged();
+                return;
+            }
+            if (gameService.IsBoardFull())
+            {
+                statusMessage = "It's a draw!";
+                gameEnded = true;
+                StateHasChanged();
+                return;
+            }
+
+            gameService.SwitchPlayer();
+            statusMessage = "AI is thinking...";
+            StateHasChanged(); // Update UI to show AI is thinking
+
+            await Task.Delay(500); // Simulate AI thinking time
+
+            var aiMove = await aiService.GetBestMoveAsync(gameService.Board, AIPlayer);
+            if (aiMove.row != -1 && gameService.MakeMove(aiMove.row, aiMove.col))
+            {
+                if (gameService.CheckWin(AIPlayer))
+                {
+                    statusMessage = "AI wins! Better luck next time.";
+                    gameEnded = true;
+                }
+                else if (gameService.IsBoardFull())
+                {
+                    statusMessage = "It's a draw!";
+                    gameEnded = true;
+                }
+                else
+                {
+                    gameService.SwitchPlayer();
+                    statusMessage = "Your turn (X).";
+                }
+            }
+            else
+            {
+                // This case should ideally not happen if AI always returns a valid move or opening book is robust
+                statusMessage = "AI failed to make a move. It's a draw or an error.";
+                gameEnded = true; 
+            }
+        }
+        else
+        {
+            statusMessage = "Invalid move. Try again.";
+        }
+        StateHasChanged();
+    }
+
+    private void ResetGame()
+    {
+        gameService.ResetGame();
+        gameEnded = false;
+        statusMessage = "New game started. Your turn (X).";
+        StateHasChanged();
+    }
+} 

@@ -1,0 +1,78 @@
+@page "/opening-moves"
+@using CaroAIServer.Data
+@inject ApplicationDbContext DbContext
+@inject ILogger<OpeningMovesViewer> Logger
+
+<h3>Recommended Opening Moves (for Empty Board)</h3>
+
+@if (isLoading)
+{
+    <p><em>Loading...</em></p>
+}
+else if (recommendedMoves == null || !recommendedMoves.Any())
+{
+    <p>No opening moves found. Please ensure data has been generated.</p>
+    <p>@errorMessage</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Rank</th>
+                <th>Row</th>
+                <th>Column</th>
+                <th>Score</th>
+                <th>Reasoning</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var move in recommendedMoves.OrderBy(m => m.MoveRank))
+            {
+                <tr>
+                    <td>@move.MoveRank</td>
+                    <td>@move.MoveRow</td>
+                    <td>@move.MoveCol</td>
+                    <td>@move.MoveScore.ToString("F2")</td>
+                    <td>@move.Reasoning</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<MoveRecommendation>? recommendedMoves;
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Logger.LogInformation("Fetching opening moves from database.");
+            var openingPosition = await DbContext.OpeningPositions
+                                        .Include(op => op.MoveRecommendations)
+                                        .FirstOrDefaultAsync(op => op.PositionHash == "empty_board_15x15_initial");
+
+            if (openingPosition != null)
+            {
+                recommendedMoves = openingPosition.MoveRecommendations.ToList();
+                Logger.LogInformation("Successfully fetched {Count} moves.", recommendedMoves.Count);
+            }
+            else
+            {
+                errorMessage = "The initial opening position ('empty_board_15x15_initial') was not found in the database.";
+                Logger.LogWarning(errorMessage);
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An error occurred while loading data: {ex.Message}";
+            Logger.LogError(ex, "Error fetching opening moves.");
+        }
+        finally
+        {isLoading = false;
+        }
+    }
+} 

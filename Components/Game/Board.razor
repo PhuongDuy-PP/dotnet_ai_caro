@@ -1,0 +1,166 @@
+@rendermode InteractiveServer
+@using CaroAIServer.Services
+@inject GameService gameService
+
+<style>
+    :root {
+        --board-size-css: @GameService.BoardSize; /* Make BoardSize available to CSS */
+        --cell-size-desktop: 35px;
+        --cell-size-mobile: clamp(18px, calc(90vw / @GameService.BoardSize), 30px); /* Responsive cell size */
+        --font-size-desktop: 24px;
+        --font-size-mobile: clamp(12px, calc(70vw / @GameService.BoardSize), 20px); /* Responsive font size */
+    }
+
+    .board {
+        display: grid;
+        /* Calculate grid properties based on CSS variables */
+        grid-template-columns: repeat(var(--board-size-css), var(--cell-size-mobile));
+        grid-template-rows: repeat(var(--board-size-css), var(--cell-size-mobile));
+        width: calc(var(--board-size-css) * var(--cell-size-mobile));
+        height: calc(var(--board-size-css) * var(--cell-size-mobile));
+        max-width: 90vw; /* Max width for larger screens, allows shrinking */
+        max-height: 90vh; /* Ensure board fits viewport height too */
+        margin-left: auto; /* Center the board if it's narrower than container */
+        margin-right: auto; /* Center the board */
+        border: 1px solid #dee2e6;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        /* Ensure the board itself can shrink if viewport is too small */
+        overflow: hidden; /* In case content tries to overflow due to rounding */
+    }
+
+    .cell {
+        width: var(--cell-size-mobile); /* Use CSS variable */
+        height: var(--cell-size-mobile); /* Use CSS variable */
+        border: 1px solid #e9ecef;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+        box-sizing: border-box; /* Include padding and border in the element's total width and height */
+    }
+
+    .cell:hover {
+        background-color: #f8f9fa;
+    }
+
+    .cell.player1 {
+        color: #007bff;
+    }
+
+    .cell.player2 {
+        color: #dc3545;
+    }
+
+    .cell.ai-last-move {
+        background-color: #ffc107;
+        border: 2px solid #e0a800;
+    }
+
+    .cell.last-played-move {
+        box-shadow: inset 0 0 0 2px #28a745;
+    }
+
+    .cell-content {
+        font-size: var(--font-size-mobile); /* Use CSS variable */
+        font-weight: bold;
+        line-height: 1; /* Ensure text stays within cell */
+    }
+
+    /* Desktop and larger screens */
+    @@media (min-width: 768px) {
+        .board {
+            grid-template-columns: repeat(var(--board-size-css), var(--cell-size-desktop));
+            grid-template-rows: repeat(var(--board-size-css), var(--cell-size-desktop));
+            width: calc(var(--board-size-css) * var(--cell-size-desktop));
+            height: calc(var(--board-size-css) * var(--cell-size-desktop));
+        }
+
+        .cell {
+            width: var(--cell-size-desktop);
+            height: var(--cell-size-desktop);
+        }
+
+        .cell.player1 {
+            color: #007bff; /* Ensure desktop color for player 1 */
+        }
+
+        .cell.player2 {
+            color: #dc3545; /* Ensure desktop color for player 2 */
+        }
+
+        .cell.ai-last-move {
+            background-color: #ffc107; /* Ensure desktop background for AI last move */
+            border: 2px solid #e0a800; /* Ensure desktop border for AI last move */
+        }
+
+        .cell.last-played-move {
+            box-shadow: inset 0 0 0 2px #28a745; /* Ensure desktop shadow for last played move */
+        }
+
+        .cell-content {
+            font-size: var(--font-size-desktop);
+        }
+    }
+</style>
+
+<div class="board">
+    @for (int i = 0; i < GameService.BoardSize; i++)
+    {
+        @for (int j = 0; j < GameService.BoardSize; j++)
+        {
+            var row = i; // capture loop variables for the lambda
+            var col = j;
+            <div class="cell @GetCellClass(row, col)" @onclick="() => CellClicked(row, col)">
+                 <span class="cell-content">
+                    @GetCellContent(row, col)
+                </span>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public EventCallback<(int row, int col)> OnCellClick { get; set; }
+
+    private string GetCellClass(int row, int col)
+    {
+        var cellClass = gameService.Board[row, col] switch
+        {
+            1 => "player1",
+            2 => "player2",
+            _ => ""
+        };
+
+        if (gameService.AILastMove.HasValue && gameService.AILastMove.Value.row == row && gameService.AILastMove.Value.col == col)
+        {
+            cellClass += " ai-last-move";
+        }
+
+        if (gameService.LastMove.HasValue && gameService.LastMove.Value.row == row && gameService.LastMove.Value.col == col)
+        {
+            cellClass += " last-played-move";
+        }
+        return cellClass.Trim();
+    }
+
+    private string GetCellContent(int row, int col)
+    {
+        return gameService.Board[row, col] switch
+        {
+            1 => "X",
+            2 => "O",
+            _ => ""
+        };
+    }
+
+    private async Task CellClicked(int row, int col)
+    {
+        if (gameService.Board[row, col] == 0) // Only allow clicking on empty cells
+        {
+           await OnCellClick.InvokeAsync((row, col));
+        }
+    }
+} 

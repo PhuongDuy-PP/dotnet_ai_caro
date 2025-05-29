@@ -1,0 +1,97 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main # Or your default branch
+
+jobs:
+  build_and_push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # Required to push to GitHub Container Registry
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/caroaiapp:${{ github.sha }}
+          # Example of passing build arguments for appsettings from secrets
+          # build-args: |
+          #   APP_SETTING_KEY=${{ secrets.YOUR_APP_SETTING_SECRET }}
+
+  deploy:
+    needs: build_and_push
+    runs-on: ubuntu-latest
+    environment: production # Optional: if you have a GitHub environment configured
+    steps:
+      - name: Deploy to DigitalOcean Droplet
+        uses: appleboy/ssh-action@v1.0.3 # Using a specific version
+        with:
+          host: ${{ secrets.DO_DROPLET_HOST }}
+          username: ${{ secrets.DO_DROPLET_USERNAME }}
+          key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.DO_SSH_PORT || 22 }} # Default to 22 if not specified
+          script: |
+            # Ensure Docker is logged in to GHCR (or your chosen registry)
+            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            IMAGE_NAME="ghcr.io/${{ github.repository_owner }}/caroaiapp:${{ github.sha }}"
+            CONTAINER_NAME="caro-ai-server-container"
+
+            echo "Deploying image $IMAGE_NAME"
+
+            # Pull the latest Docker image
+            docker pull $IMAGE_NAME
+
+            # Stop and remove the existing container if it's running
+            if [ "$(docker ps -q -f name=$CONTAINER_NAME)" ]; then
+                docker stop $CONTAINER_NAME
+            fi
+            if [ "$(docker ps -aq -f name=$CONTAINER_NAME)" ]; then
+                docker rm $CONTAINER_NAME
+            fi
+
+            # Run the new container with environment variables from GitHub Secrets
+            # Adjust the port mapping (-p) as needed.
+            # This example maps port 80 on the Droplet to port 8080 in the container.
+            # Your ASP.NET Core app needs to listen on the internal port (e.g., 8080).
+            docker run -d --restart always \
+              -p 80:8080 \
+              --name $CONTAINER_NAME \
+              -e ASPNETCORE_ENVIRONMENT=Production \
+              -e ASPNETCORE_URLS="http://+:8080" \ # Ensure Kestrel listens on the correct port inside the container
+              -e ConnectionStrings__DefaultConnection='${{ secrets.DB_CONNECTION_STRING }}' \
+              -e AppSettings__ApiKey='${{ secrets.API_KEY }}' \
+              # Add any other application-specific secrets as environment variables here
+              $IMAGE_NAME
+
+# Example: How to access these in appsettings.json or Program.cs
+# In appsettings.json, you can reference environment variables:
+# {
+#   "ConnectionStrings": {
+#     "DefaultConnection": "${ConnectionStrings__DefaultConnection}"
+#   },
+#   "AppSettings": {
+#     "ApiKey": "${AppSettings__ApiKey}"
+#    }
+# }
+# Or in Program.cs:
+# builder.Configuration.AddEnvironmentVariables();
+# var apiKey = builder.Configuration["AppSettings:ApiKey"]; 
