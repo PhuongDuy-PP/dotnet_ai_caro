@@ -46,7 +46,8 @@ jobs:
         with:
           host: ${{ secrets.DO_DROPLET_HOST }}
           username: ${{ secrets.DO_DROPLET_USERNAME }}
-          key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
+          password: ${{ secrets.DO_DROPLET_PASSWORD }} # <<<<------ THAY ĐỔI Ở ĐÂY: Sử dụng password từ secrets
+          # key: ${{ secrets.DO_SSH_PRIVATE_KEY }} # <<<<------ BỎ HOẶC COMMENT DÒNG NÀY
           port: ${{ secrets.DO_SSH_PORT || 22 }} # Default to 22 if not specified
           script: |
             # Ensure Docker is logged in to GHCR (or your chosen registry)
