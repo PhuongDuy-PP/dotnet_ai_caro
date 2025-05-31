@@ -44,9 +44,9 @@ jobs:
           tags: ghcr.io/${{ env.OWNER_LC }}/caroaiapp:${{ github.sha }} # Image được tag bằng SHA của commit
 
   deploy:
-    # Chỉ 'needs' build_and_push nếu event là 'push' (auto-deploy từ main)
-    # Đối với 'workflow_dispatch', chúng ta giả định image đã được build trước đó.
-    needs: ${{ github.event_name == 'push' && fromJSON('["build_and_push"]') || fromJSON('[]') }}
+    # Job deploy sẽ phụ thuộc vào build_and_push.
+    # Điều kiện if của job deploy và build_and_push sẽ kiểm soát khi nào chúng chạy.
+    needs: build_and_push 
     runs-on: ubuntu-latest
     environment: production # Optional: if you have a GitHub environment configured
     # Điều kiện để job deploy chạy
@@ -59,7 +59,7 @@ jobs:
         with:
           host: ${{ secrets.DO_DROPLET_HOST }}
           username: root # Sử dụng username root trực tiếp
-          password: ${{ secrets.DO_DROPLET_PASSWORD }} # <<<<------ THAY ĐỔI Ở ĐÂY: Sử dụng password từ secrets
+          password: ${{ secrets.DO_DROPLET_PASSWORD }} 
           port: ${{ secrets.DO_SSH_PORT || 22 }} # Default to 22 if not specified
           script: |
             # Ensure Docker is logged in to GHCR (or your chosen registry)
