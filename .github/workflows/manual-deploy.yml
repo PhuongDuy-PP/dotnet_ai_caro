@@ -3,16 +3,23 @@ name: Manual Deploy to Droplet
 on:
   workflow_dispatch:
     inputs:
-      image_tag:
-        description: 'The Docker image tag (commit SHA) to deploy. Find this from the SHA of a commit whose image was built by the CI/CD pipeline.'
+      branch_to_deploy:
+        description: 'The branch name whose latest commit image you want to deploy. Example: main, develop, feature/xyz'
         required: true
         type: string
+        default: 'main' # Hoặc bạn có thể để trống và bắt buộc nhập
 
 jobs:
   manual_deploy:
     runs-on: ubuntu-latest
     environment: production # Optional: if you have a GitHub environment configured
     steps:
+      - name: Checkout the specified branch
+        uses: actions/checkout@v4
+        with:
+          # Checkout nhánh được chỉ định từ input để github.sha trỏ đến commit mới nhất của nhánh đó
+          ref: ${{ github.event.inputs.branch_to_deploy }}
+
       - name: Deploy to DigitalOcean Droplet (Manual Trigger)
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -24,11 +31,12 @@ jobs:
             echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
             OWNER_LOWERCASE=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-            IMAGE_SHA="${{ github.event.inputs.image_tag }}" # Lấy SHA từ input của workflow_dispatch
+            # github.sha bây giờ là SHA của commit mới nhất trên nhánh đã checkout (branch_to_deploy)
+            IMAGE_SHA="${{ github.sha }}" 
             IMAGE_NAME="ghcr.io/${OWNER_LOWERCASE}/caroaiapp:${IMAGE_SHA}"
             CONTAINER_NAME="caro-ai-server-container"
 
-            echo "Manually deploying image: $IMAGE_NAME to Droplet"
+            echo "Manually deploying image for branch '${{ github.event.inputs.branch_to_deploy }}' (SHA: $IMAGE_SHA) to Droplet"
 
             # Pull the specified Docker image
             docker pull $IMAGE_NAME
