@@ -28,7 +28,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         env:
-          OWNER_LC: ${{ github.repository_owner.toLowerCase() }}
+          OWNER_LC: ${{ toLower(github.repository_owner) }}
         with:
           context: .
           file: ./Dockerfile
