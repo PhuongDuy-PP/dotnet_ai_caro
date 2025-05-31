@@ -74,17 +74,13 @@ jobs:
             fi
 
             # Run the new container with environment variables from GitHub Secrets
-            # Adjust the port mapping (-p) as needed.
-            # This example maps port 80 on the Droplet to port 8080 in the container.
-            # Your ASP.NET Core app needs to listen on the internal port (e.g., 8080).
             docker run -d --restart always \
               -p 80:8080 \
               --name $CONTAINER_NAME \
               -e ASPNETCORE_ENVIRONMENT=Production \
-              -e ASPNETCORE_URLS="http://+:8080" \ # Ensure Kestrel listens on the correct port inside the container
+              -e ASPNETCORE_URLS="http://+:8080" \
               -e ConnectionStrings__DefaultConnection='${{ secrets.DB_CONNECTION_STRING }}' \
               -e AppSettings__ApiKey='${{ secrets.API_KEY }}' \
-              # Add any other application-specific secrets as environment variables here
               $IMAGE_NAME
 
 # Example: How to access these in appsettings.json or Program.cs
