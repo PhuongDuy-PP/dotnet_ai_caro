@@ -75,7 +75,7 @@ jobs:
 
             # Run the new container with environment variables from GitHub Secrets
             docker run -d --restart always \
-              -p 80:8080 \
+              -p 127.0.0.1:8080:8080 \
               --name $CONTAINER_NAME \
               -e ASPNETCORE_ENVIRONMENT=Production \
               -e ASPNETCORE_URLS="http://+:8080" \
