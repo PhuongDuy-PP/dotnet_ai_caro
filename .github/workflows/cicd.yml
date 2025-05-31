@@ -1,12 +1,19 @@
 name: CI/CD Pipeline
 
 on:
-  push:
-    branches:
-      - main # Or your default branch
+  push: # Trigger cho build trên tất cả các nhánh và auto-deploy từ main
+    branches-ignore:
+      - 'gh-pages' # Ví dụ: bỏ qua nhánh này nếu có
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'The Docker image tag (commit SHA) to deploy. Find this from the SHA of the commit on the branch you want to deploy.'
+        required: true
+        type: string
 
 jobs:
   build_and_push:
+    if: github.event_name == 'push' # Chỉ chạy khi có push event
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -34,15 +41,18 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ghcr.io/${{ env.OWNER_LC }}/caroaiapp:${{ github.sha }}
-          # Example of passing build arguments for appsettings from secrets
-          # build-args: |
-          #   APP_SETTING_KEY=${{ secrets.YOUR_APP_SETTING_SECRET }}
+          tags: ghcr.io/${{ env.OWNER_LC }}/caroaiapp:${{ github.sha }} # Image được tag bằng SHA của commit
 
   deploy:
-    needs: build_and_push
+    # Chỉ 'needs' build_and_push nếu event là 'push' (auto-deploy từ main)
+    # Đối với 'workflow_dispatch', chúng ta giả định image đã được build trước đó.
+    needs: ${{ github.event_name == 'push' && fromJSON('["build_and_push"]') || fromJSON('[]') }}
     runs-on: ubuntu-latest
     environment: production # Optional: if you have a GitHub environment configured
+    # Điều kiện để job deploy chạy
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      github.event_name == 'workflow_dispatch'
     steps:
       - name: Deploy to DigitalOcean Droplet
         uses: appleboy/ssh-action@v1.0.3 # Using a specific version
@@ -50,17 +60,26 @@ jobs:
           host: ${{ secrets.DO_DROPLET_HOST }}
           username: root # Sử dụng username root trực tiếp
           password: ${{ secrets.DO_DROPLET_PASSWORD }} # <<<<------ THAY ĐỔI Ở ĐÂY: Sử dụng password từ secrets
-          # key: ${{ secrets.DO_SSH_PRIVATE_KEY }} # <<<<------ BỎ HOẶC COMMENT DÒNG NÀY
           port: ${{ secrets.DO_SSH_PORT || 22 }} # Default to 22 if not specified
           script: |
             # Ensure Docker is logged in to GHCR (or your chosen registry)
             echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
             OWNER_LOWERCASE=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-            IMAGE_NAME="ghcr.io/${OWNER_LOWERCASE}/caroaiapp:${{ github.sha }}"
+            
+            # Xác định IMAGE_SHA cần deploy
+            if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+              IMAGE_SHA="${{ github.event.inputs.image_tag }}"
+              echo "Manual deployment triggered for image tag (SHA): $IMAGE_SHA"
+            else # Phải là push event tới main do điều kiện "if" của job
+              IMAGE_SHA="${{ github.sha }}"
+              echo "Automatic deployment triggered for main branch, commit SHA: $IMAGE_SHA"
+            fi
+            
+            IMAGE_NAME="ghcr.io/${OWNER_LOWERCASE}/caroaiapp:${IMAGE_SHA}"
             CONTAINER_NAME="caro-ai-server-container"
 
-            echo "Deploying image $IMAGE_NAME"
+            echo "Deploying image: $IMAGE_NAME"
 
             # Pull the latest Docker image
             docker pull $IMAGE_NAME
@@ -74,6 +93,7 @@ jobs:
             fi
 
             # Run the new container with environment variables from GitHub Secrets
+            # Giữ nguyên port mapping đã sửa trước đó: 127.0.0.1:8080:8080
             docker run -d --restart always \
               -p 127.0.0.1:8080:8080 \
               --name $CONTAINER_NAME \
