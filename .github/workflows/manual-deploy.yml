@@ -1,0 +1,52 @@
+name: Manual Deploy to Droplet
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'The Docker image tag (commit SHA) to deploy. Find this from the SHA of a commit whose image was built by the CI/CD pipeline.'
+        required: true
+        type: string
+
+jobs:
+  manual_deploy:
+    runs-on: ubuntu-latest
+    environment: production # Optional: if you have a GitHub environment configured
+    steps:
+      - name: Deploy to DigitalOcean Droplet (Manual Trigger)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DO_DROPLET_HOST }}
+          username: root
+          password: ${{ secrets.DO_DROPLET_PASSWORD }}
+          port: ${{ secrets.DO_SSH_PORT || 22 }}
+          script: |
+            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            OWNER_LOWERCASE=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+            IMAGE_SHA="${{ github.event.inputs.image_tag }}" # Lấy SHA từ input của workflow_dispatch
+            IMAGE_NAME="ghcr.io/${OWNER_LOWERCASE}/caroaiapp:${IMAGE_SHA}"
+            CONTAINER_NAME="caro-ai-server-container"
+
+            echo "Manually deploying image: $IMAGE_NAME to Droplet"
+
+            # Pull the specified Docker image
+            docker pull $IMAGE_NAME
+
+            # Stop and remove the existing container if it's running
+            if [ "$(docker ps -q -f name=$CONTAINER_NAME)" ]; then
+                docker stop $CONTAINER_NAME
+            fi
+            if [ "$(docker ps -aq -f name=$CONTAINER_NAME)" ]; then
+                docker rm $CONTAINER_NAME
+            fi
+
+            # Run the new container
+            docker run -d --restart always \
+              -p 127.0.0.1:8080:8080 \
+              --name $CONTAINER_NAME \
+              -e ASPNETCORE_ENVIRONMENT=Production \
+              -e ASPNETCORE_URLS="http://+:8080" \
+              -e ConnectionStrings__DefaultConnection='${{ secrets.DB_CONNECTION_STRING }}' \
+              -e AppSettings__ApiKey='${{ secrets.API_KEY }}' \
+              $IMAGE_NAME 
