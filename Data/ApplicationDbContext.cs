@@ -11,6 +11,7 @@ namespace CaroAIServer.Data
 
         public DbSet<OpeningPosition> OpeningPositions { get; set; }
         public DbSet<MoveRecommendation> MoveRecommendations { get; set; }
+        public DbSet<GeneratedOpeningSequence> GeneratedOpeningSequences { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

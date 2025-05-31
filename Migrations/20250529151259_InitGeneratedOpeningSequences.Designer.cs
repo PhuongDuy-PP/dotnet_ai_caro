@@ -4,6 +4,7 @@ using CaroAIServer.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CaroAIServer.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250529151259_InitGeneratedOpeningSequences")]
+    partial class InitGeneratedOpeningSequences
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -142,17 +145,9 @@ namespace CaroAIServer.Migrations
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("game_phase");
 
-                    b.Property<DateTime>("LastUpdatedDate")
-                        .HasColumnType("datetime2")
-                        .HasColumnName("last_updated_date");
-
                     b.Property<int>("MoveNumber")
                         .HasColumnType("int")
                         .HasColumnName("move_number");
-
-                    b.Property<int>("PlayerToMove")
-                        .HasColumnType("int")
-                        .HasColumnName("player_to_move");
 
                     b.Property<string>("PositionHash")
                         .HasMaxLength(64)

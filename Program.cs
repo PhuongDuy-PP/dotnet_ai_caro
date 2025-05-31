@@ -18,6 +18,7 @@ builder.Services.AddControllers();
 builder.Services.AddScoped<OpeningDataService>();
 builder.Services.AddScoped<GameService>();
 builder.Services.AddScoped<AIService>();
+builder.Services.AddScoped<OpeningGenerationService>();
 
 var app = builder.Build();
 

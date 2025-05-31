@@ -26,6 +26,9 @@ namespace CaroAIServer.Data
         [Column("board_state")]
         public string? BoardState { get; set; } // JSON string
 
+        [Column("player_to_move")]
+        public int PlayerToMove { get; set; }
+
         [Column("best_moves")]
         public string? BestMoves { get; set; } // JSON array
 
@@ -43,6 +46,9 @@ namespace CaroAIServer.Data
 
         [Column("created_date")]
         public DateTime CreatedDate { get; set; }
+
+        [Column("last_updated_date")]
+        public DateTime LastUpdatedDate { get; set; }
 
         public virtual ICollection<MoveRecommendation> MoveRecommendations { get; set; } = new List<MoveRecommendation>();
     }

@@ -36,62 +36,44 @@ public class GameService
 
     public bool CheckWin(int player)
     {
-        // Check rows
-        for (int i = 0; i < BoardSize; i++)
+        // Determine opponent's ID. Assuming player 1 (Human) and 2 (AI).
+        // This needs to be consistent with how player IDs are defined and used elsewhere.
+        int opponent = (player == 1) ? 2 : 1;
+
+        // Check rows for win
+        for (int r = 0; r < BoardSize; r++)
         {
-            for (int j = 0; j <= BoardSize - 5; j++)
+            for (int c = 0; c <= BoardSize - 5; c++) // c can go up to BoardSize - 5 to start a line of 5
             {
-                if (Board[i, j] == player &&
-                    Board[i, j + 1] == player &&
-                    Board[i, j + 2] == player &&
-                    Board[i, j + 3] == player &&
-                    Board[i, j + 4] == player)
-                    return true;
+                if (IsWinningPattern(this.Board, player, opponent, r, c, 0, 1)) return true;
             }
         }
-
-        // Check columns
-        for (int j = 0; j < BoardSize; j++)
+        // Check columns for win
+        for (int c = 0; c < BoardSize; c++)
         {
-            for (int i = 0; i <= BoardSize - 5; i++)
+            for (int r = 0; r <= BoardSize - 5; r++) // r can go up to BoardSize - 5
             {
-                if (Board[i, j] == player &&
-                    Board[i + 1, j] == player &&
-                    Board[i + 2, j] == player &&
-                    Board[i + 3, j] == player &&
-                    Board[i + 4, j] == player)
-                    return true;
+                if (IsWinningPattern(this.Board, player, opponent, r, c, 1, 0)) return true;
             }
         }
-
-        // Check diagonal (top-left to bottom-right)
-        for (int i = 0; i <= BoardSize - 5; i++)
+        // Check main diagonal (top-left to bottom-right)
+        for (int r = 0; r <= BoardSize - 5; r++)
         {
-            for (int j = 0; j <= BoardSize - 5; j++)
+            for (int c = 0; c <= BoardSize - 5; c++)
             {
-                if (Board[i, j] == player &&
-                    Board[i + 1, j + 1] == player &&
-                    Board[i + 2, j + 2] == player &&
-                    Board[i + 3, j + 3] == player &&
-                    Board[i + 4, j + 4] == player)
-                    return true;
+                if (IsWinningPattern(this.Board, player, opponent, r, c, 1, 1)) return true;
             }
         }
-
-        // Check diagonal (top-right to bottom-left)
-        for (int i = 0; i <= BoardSize - 5; i++)
+        // Check anti-diagonal (top-right to bottom-left)
+        for (int r = 0; r <= BoardSize - 5; r++)
         {
-            for (int j = 4; j < BoardSize; j++)
+            // c_start for anti-diagonal must be at least 4 (0-indexed) to allow line of 5 to c_start - 4
+            // So, c can go from 4 up to BoardSize - 1
+            for (int c = 4; c < BoardSize; c++) 
             {
-                if (Board[i, j] == player &&
-                    Board[i + 1, j - 1] == player &&
-                    Board[i + 2, j - 2] == player &&
-                    Board[i + 3, j - 3] == player &&
-                    Board[i + 4, j - 4] == player)
-                    return true;
+                if (IsWinningPattern(this.Board, player, opponent, r, c, 1, -1)) return true;
             }
         }
-
         return false;
     }
 
@@ -116,5 +98,56 @@ public class GameService
         CurrentPlayer = 1;
         AILastMove = null; // Reset AI's last move on game reset
         LastMove = null; // Reset overall last move on game reset
+    }
+
+    // Helper to get cell value safely, returns -1 if out of bounds
+    // This GetCell is specific to GameService and uses its BoardSize
+    private int GetCell(int[,] board, int r, int c)
+    {
+        if (r >= 0 && r < BoardSize && c >= 0 && c < BoardSize) return board[r, c];
+        return -1; // Sentinel for "off-board"
+    }
+
+    // Checks if a 5-in-a-row starting at (r_start, c_start) in direction (dr, dc)
+    // is a winning pattern according to standard rules (not overline, not doubly blocked by opponent).
+    private bool IsWinningPattern(int[,] board, int player, int opponent, int r_start, int c_start, int dr, int dc)
+    {
+        // 1. Check for 5 consecutive player pieces
+        for (int i = 0; i < 5; i++)
+        {
+            if (GetCell(board, r_start + i * dr, c_start + i * dc) != player)
+                return false; // Not 5 in a row
+        }
+
+        // If we reach here, we found 5 consecutive player pieces.
+        // Console.WriteLine($"DEBUG IsWinningPattern (GameService): Potential 5-in-a-row for P{player} starting at ({r_start},{c_start}) with direction ({dr},{dc}). Opponent ID is P{opponent}.");
+
+        int r_before = r_start - dr;
+        int c_before = c_start - dc;
+        int val_before = GetCell(board, r_before, c_before);
+        // Console.WriteLine($"  (GameService) Cell before: ({r_before},{c_before}), Value: {val_before}");
+
+        int r_after = r_start + 5 * dr;
+        int c_after = c_start + 5 * dc;
+        int val_after = GetCell(board, r_after, c_after);
+        // Console.WriteLine($"  (GameService) Cell after: ({r_after},{c_after}), Value: {val_after}");
+
+        // 2. Check for overline (6th piece is also player)
+        if (val_before == player || val_after == player)
+        {
+            // Console.WriteLine("  DEBUG IsWinningPattern (GameService): Overline detected. Not a win.");
+            return false; // Overline of 6 or more
+        }
+
+        // 3. Check for doubly blocked five (O P P P P P O)
+        // This means the player\'s 5-in-a-row is blocked by the opponent on both sides.
+        if (val_before == opponent && val_after == opponent)
+        {
+            // Console.WriteLine("  DEBUG IsWinningPattern (GameService): Doubly blocked by opponent. Not a win.");
+            return false; // Doubly blocked by opponent
+        }
+        
+        // Console.WriteLine("  DEBUG IsWinningPattern (GameService): Valid win condition met.");
+        return true; // It\'s a valid winning five
     }
 } 

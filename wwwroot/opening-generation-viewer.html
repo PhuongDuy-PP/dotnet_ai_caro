@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Opening Generation Viewer</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(15, 30px);
+            grid-template-rows: repeat(15, 30px);
+            width: 450px;
+            height: 450px;
+            border: 1px solid black;
+            margin-bottom: 20px;
+        }
+        .cell {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+        }
+        .player1 { background-color: #ffdddd; content: 'X'; }
+        .player2 { background-color: #ddddff; content: 'O'; }
+        #status { margin-bottom: 10px; font-weight: bold; }
+        #movesLog { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>AI Opening Generation Viewer</h1>
+    <div id="status">Status: Idle</div>
+    <div class="board" id="gameBoard"></div>
+    <button onclick="startGeneration()">Start Generation (10 games, 10 moves)</button>
+    <button onclick="fetchStatus()">Refresh Status</button>
+    <hr/>
+    <h2>Live Moves Log:</h2>
+    <div id="movesLog"></div>
+
+    <script>
+        const boardSize = 15;
+        const gameBoard = document.getElementById('gameBoard');
+        const statusDiv = document.getElementById('status');
+        const movesLogDiv = document.getElementById('movesLog');
+
+        function createBoard() {
+            gameBoard.innerHTML = '';
+            for (let r = 0; r < boardSize; r++) {
+                for (let c = 0; c < boardSize; c++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('cell');
+                    cell.id = `cell-${r}-${c}`;
+                    gameBoard.appendChild(cell);
+                }
+            }
+        }
+
+        function updateBoard(moves) {
+            createBoard(); // Clear and recreate for simplicity, can be optimized
+            if (!moves) return;
+            moves.forEach((move, index) => {
+                const cell = document.getElementById(`cell-${move.row}-${move.column}`);
+                if (cell) {
+                    cell.textContent = (index % 2 === 0) ? 'X' : 'O'; // Assuming player 1 (X) starts
+                    cell.classList.add((index % 2 === 0) ? 'player1' : 'player2');
+                }
+            });
+        }
+
+        async function fetchStatus() {
+            try {
+                const response = await fetch('/api/OpeningGeneration/generation-status');
+                if (!response.ok) {
+                    statusDiv.textContent = `Error fetching status: ${response.status}`;
+                    return;
+                }
+                const data = await response.json();
+                statusDiv.textContent = `Status: ${data.currentGenerationStatus}`;
+                updateBoard(data.currentMoves);
+                
+                let logText = "";
+                if(data.currentMoves) {
+                    data.currentMoves.forEach((m, i) => {
+                        logText += `Move ${i+1}: Player ${(i%2 === 0) ? 1:2} at (${m.row}, ${m.column})\n`;
+                    });
+                }
+                movesLogDiv.textContent = logText;
+
+            } catch (error) {
+                statusDiv.textContent = `Error fetching status: ${error}`;
+                console.error("Error fetching status:", error);
+            }
+        }
+
+        async function startGeneration() {
+            statusDiv.textContent = 'Starting generation...';
+            try {
+                const response = await fetch('/api/OpeningGeneration/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        numberOfGames: 10, 
+                        maxMovesPerSequence: 10,
+                        startingPlayer: 1
+                    })
+                });
+                if (response.ok) {
+                    const message = await response.text();
+                    alert(message); // Show message from server
+                    fetchStatus(); // Initial fetch
+                } else {
+                    alert(`Error starting generation: ${response.status} - ${await response.text()}`);
+                }
+            } catch (error) {
+                alert(`Error starting generation: ${error}`);
+                console.error("Error starting generation:", error);
+            }
+        }
+
+        createBoard();
+        fetchStatus(); // Initial load
+        setInterval(fetchStatus, 2000); // Poll every 2 seconds
+    </script>
+</body>
+</html> 

@@ -158,7 +158,7 @@
 
             await Task.Delay(500); // Simulate AI thinking time
 
-            var aiMove = await aiService.GetBestMoveAsync(gameService.Board, AIPlayer);
+            var aiMove = aiService.GetBestMove(gameService.Board, AIPlayer, HumanPlayer);
             if (aiMove.row != -1 && gameService.MakeMove(aiMove.row, aiMove.col))
             {
                 if (gameService.CheckWin(AIPlayer))
