@@ -1,13 +1,17 @@
 name: CI/CD Pipeline
 
 on:
-  push: # Trigger cho build trên tất cả các nhánh và auto-deploy từ main
+  push: # Trigger build cho tất cả các nhánh (bao gồm cả merge commit push lên main)
     branches-ignore:
-      - 'gh-pages' # Ví dụ: bỏ qua nhánh này nếu có
+      - 'gh-pages'
+  pull_request: # Trigger deploy khi PR vào main được close và merged
+    types: [closed]
+    branches:
+      - main
 
 jobs:
   build_and_push:
-    # Không cần if ở đây, sẽ chạy trên mọi push (ngoại trừ branches-ignore)
+    if: github.event_name == 'push' # Chỉ chạy khi có push event
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -35,16 +39,17 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ghcr.io/${{ env.OWNER_LC }}/caroaiapp:${{ github.sha }} # Image được tag bằng SHA của commit
+          tags: ghcr.io/${{ env.OWNER_LC }}/caroaiapp:${{ github.sha }} # Image được tag bằng SHA của push event
 
   deploy:
-    needs: build_and_push 
+    # Chỉ chạy khi PR vào main được closed và merged
+    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     environment: production 
-    # Chỉ deploy tự động khi push lên nhánh main
-    if: github.ref == 'refs/heads/main'
+    # Job này không 'needs: build_and_push' trực tiếp vì trigger event khác nhau.
+    # Nó dựa vào việc image của merge commit đã được build_and_push (do push event khi merge) tạo ra.
     steps:
-      - name: Deploy to DigitalOcean Droplet (Main Branch)
+      - name: Deploy to DigitalOcean Droplet (On PR Merge to Main)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DO_DROPLET_HOST }}
@@ -55,11 +60,12 @@ jobs:
             echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
             OWNER_LOWERCASE=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-            IMAGE_SHA="${{ github.sha }}" # Luôn lấy SHA từ commit hiện tại của main
+            # Lấy SHA của merge commit từ pull_request event
+            IMAGE_SHA="${{ github.event.pull_request.merge_commit_sha }}" 
             IMAGE_NAME="ghcr.io/${OWNER_LOWERCASE}/caroaiapp:${IMAGE_SHA}"
             CONTAINER_NAME="caro-ai-server-container"
 
-            echo "Auto-deploying image for main branch: $IMAGE_NAME"
+            echo "Auto-deploying image on PR merge to main: $IMAGE_NAME"
 
             docker pull $IMAGE_NAME
 
