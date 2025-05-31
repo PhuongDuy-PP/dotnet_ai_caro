@@ -15,6 +15,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Convert owner to lowercase
+        run: echo "OWNER_LC=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -27,8 +30,6 @@ jobs:
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
-        env:
-          OWNER_LC: ${{ toLower(github.repository_owner) }}
         with:
           context: .
           file: ./Dockerfile
